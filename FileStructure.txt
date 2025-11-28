@@ -1,0 +1,79 @@
+/src
+ ├── /app
+ │    ├── layout.tsx
+ │    ├── globals.css
+ │    │
+ │    ├── /login
+ │    │     └── page.tsx
+ │    │
+ │    ├── /register
+ │    │     └── page.tsx
+ │    │
+ │    ├── /secure-session
+ │    │     └── page.tsx        # DH/ECDH handshake UI
+ │    │
+ │    ├── /chat
+ │    │     ├── page.tsx        # One global group chat
+ │    │     └── components/
+ │    │            ├── MessageInput.tsx
+ │    │            ├── MessageList.tsx
+ │    │            ├── FileUpload.tsx
+ │    │            └── EncryptionBadge.tsx
+ │    │
+ │    ├── /attacks
+ │    │     └── page.tsx        # MITM + Replay Attack Demo
+ │    │
+ │    ├── /logs
+ │    │     └── page.tsx        # Security logs viewer
+ │
+ │
+ ├── /components                   # Global shared UI components
+ │      ├── Button.tsx
+ │      ├── Input.tsx
+ │      ├── Card.tsx
+ │      ├── Modal.tsx
+ │      └── Spinner.tsx
+ │
+ │
+ ├── /hooks                        # Custom React Hooks
+ │      ├── useAuth.ts            # Manages login, tokens
+ │      ├── useIndexedDB.ts       # Store private keys securely
+ │      ├── useCrypto.ts          # AES-GCM, RSA/ECDH helpers
+ │      ├── useKeyExchange.ts     # DH handshake, signatures
+ │      ├── useChatSocket.ts      # Socket.io client logic
+ │      └── useFileEncrypt.ts     # File encryption chunks
+ │
+ │
+ ├── /lib
+ │      ├── api.ts                # Axios client (with JWT)
+ │      ├── crypto/
+ │      │     ├── aes.ts          # AES-GCM encryption/decryption
+ │      │     ├── rsa.ts          # RSA/ECC key helpers
+ │      │     ├── dh.ts           # Diffie-Hellman/ECDH logic
+ │      │     ├── signatures.ts   # Digital signature helpers
+ │      │     └── hashing.ts      # HKDF or SHA-256 derivation
+ │      │
+ │      ├── socket.ts             # Socket.io initialization
+ │      └── indexeddb.ts          # Save/load private keys securely
+ │
+ │
+ │
+ │
+ ├── /context
+ │      ├── AuthContext.tsx
+ │      ├── CryptoContext.tsx     # Stores session key, fingerprints
+ │      └── ChatContext.tsx
+ │
+ │
+ ├── /utils
+ │      ├── formatTimestamp.ts
+ │      ├── generateNonce.ts
+ │      ├── base64.ts
+ │      ├── buffer.ts
+ │      └── constants.ts
+ │
+ │
+ └── /public
+        ├── icons/
+        ├── images/
+        └── favicon.ico
