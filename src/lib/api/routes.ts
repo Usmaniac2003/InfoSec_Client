@@ -16,7 +16,6 @@ export const API_ROUTES = {
 
   keyExchange: {
     initiate: "/key-exchange/initiate",
-    respond: "/key-exchange/respond",
     confirm: "/key-exchange/confirm",
   },
 

@@ -6,57 +6,29 @@ import Button from "@/components/Button";
 import Spinner from "@/components/Spinner";
 import { useRouter } from "next/navigation";
 import AuthGuard from "@/guards/AuthGuard";
-
-/**
- * NOTE:
- * In your real implementation, the following functions
- * will come from your custom hooks:
- *
- * - useKeyExchange()
- * - useIndexedDB()
- * - useCrypto()
- *
- * I'm using placeholders so you can integrate your own logic cleanly.
- */
-
-// Placeholder: Generate local DH/ECDH keys
-async function generateDHKeys() {
-  // return { publicKey, privateKey, rawPublicKey };
-  return { publicKey: "LOCAL_PUBLIC_KEY", privateKey: "LOCAL_PRIVATE_KEY" };
-}
-
-// Placeholder: Get user's RSA private key from IndexedDB
-async function loadPrivateRSAKey() {
-  return "PRIVATE_RSA_KEY_FROM_INDEXEDDB";
-}
-
-// Placeholder: Sign message using RSA private key
-async function signHandshakeMessage(message: string, privateKey: any) {
-  return "SIGNED_MESSAGE";
-}
-
-// Placeholder: Send DH/ECDH handshake to backend
-async function sendHandshakeToServer(payload: any) {
-  // POST /key-exchange/initiate
-  return {
-    serverPublicKey: "SERVER_PUBLIC_KEY",
-    serverSignature: "SERVER_SIGNATURE",
-  };
-}
-
-// Placeholder: Derive shared session key
-async function deriveSessionKey(clientPrivateKey: any, serverPublicKey: any) {
-  return "AES_SESSION_KEY_256BIT";
-}
+import { useIdentityKeys } from "@/hooks/useIndexedDB";
+import { useCryptoContext } from "@/context/CryptoContext";
+import { useKeyExchange } from "@/hooks/useKeyExchange";
+import { deriveSharedSecret } from "@/lib/crypto/dh";
+import { hkdfDeriveAES256Key } from "@/lib/crypto/hashing";
 
 export default function SecureSessionPage() {
   const router = useRouter();
+  const cryptoContext = useCryptoContext();
+  const { initiate, confirm } = useKeyExchange();
 
-  const [step, setStep] = useState<"idle" | "generating" | "signing" | "sending" | "deriving" | "done">("idle");
+  const { ensureKeys: ensureIdentityKeys } = useIdentityKeys("EC");
 
-  const [statusMessage, setStatusMessage] = useState(
-    "Preparing secure session..."
-  );
+  const [step, setStep] = useState<
+    | "idle"
+    | "loading-identity"
+    | "generating"
+    | "deriving"
+    | "confirming"
+    | "done"
+  >("idle");
+
+  const [message, setMessage] = useState("Preparing secure session...");
 
   useEffect(() => {
     runHandshake();
@@ -64,51 +36,54 @@ export default function SecureSessionPage() {
 
   async function runHandshake() {
     try {
-      // STEP 1 — Generate DH/ECDH keys
+      // STEP 0 — Ensure identity keys exist
+      setStep("loading-identity");
+      setMessage("Loading identity keys...");
+      const identity = await ensureIdentityKeys();
+      if (!identity) throw new Error("No identity keys"); // FIXED
+      await wait(300);
+
+      // STEP 1 — Initiate handshake
       setStep("generating");
-      setStatusMessage("Generating secure ECDH keys...");
-      const dhKeys = await generateDHKeys();
-      await wait(700);
+      setMessage("Initiating handshake...");
+      const { eph, ephRaw, serverResp } = await initiate(identity);
+      const handshakeId = serverResp.handshakeId;
+      await wait(300);
 
-      // STEP 2 — Load RSA/ECC private key from IndexedDB
-      setStep("signing");
-      setStatusMessage("Loading private key & signing handshake...");
-      const privateRSAKey = await loadPrivateRSAKey();
-      const signature = await signHandshakeMessage(
-        dhKeys.publicKey,
-        privateRSAKey
-      );
-      await wait(700);
-
-      // STEP 3 — Send handshake to backend
-      setStep("sending");
-      setStatusMessage("Sending handshake to server...");
-      const serverResponse = await sendHandshakeToServer({
-        publicKey: dhKeys.publicKey,
-        signature,
-      });
-      await wait(700);
-
-      // STEP 4 — Derive shared AES session key
+      // STEP 2 — Derive session key
       setStep("deriving");
-      setStatusMessage("Deriving shared AES session key...");
-      const sessionKey = await deriveSessionKey(
-        dhKeys.privateKey,
-        serverResponse.serverPublicKey
+      setMessage("Deriving shared session key...");
+      const serverRaw = base64ToBuf(serverResp.serverEphemeralKey);
+
+      const serverPubKey = await crypto.subtle.importKey(
+        "raw",
+        serverRaw,
+        { name: "ECDH", namedCurve: "P-256" },
+        true,
+        []
       );
-      await wait(700);
 
-      // STEP 5 — Store in CryptoContext (placeholder)
-      // cryptoContext.setSessionKey(sessionKey);
+      const sharedSecret = await deriveSharedSecret(eph.privateKey, serverPubKey);
+      const sessionKey = await hkdfDeriveAES256Key(sharedSecret);
+      cryptoContext.setSessionKey(sessionKey);
+      await wait(300);
 
+      // STEP 3 — Confirm handshake
+      setStep("confirming");
+      setMessage("Confirming secure session...");
+      await confirm(sessionKey, handshakeId);
+      await wait(300);
+
+      // STEP 4 — Done
       setStep("done");
-      setStatusMessage("Secure session established. Redirecting...");
-      await wait(1000);
+      setMessage("Secure session established! Redirecting...");
+      await wait(700);
 
       router.push("/chat");
     } catch (err) {
       console.error(err);
-      setStatusMessage("Error initializing secure session. Please retry.");
+      setMessage("Error establishing secure session. Please retry.");
+      setStep("idle");
     }
   }
 
@@ -117,46 +92,33 @@ export default function SecureSessionPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-blue-50 px-4">
-      <Card className="w-full max-w-lg text-center py-10">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-2">
-          Establishing Secure Session 🔐
-        </h2>
+    <AuthGuard>
+      <div className="min-h-screen flex items-center justify-center bg-blue-50 px-4">
+        <Card className="w-full max-w-lg text-center py-10">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-2">
+            Establishing Secure Session 🔐
+          </h2>
 
-        <p className="text-gray-600 mb-8 max-w-md mx-auto">{statusMessage}</p>
+          <p className="text-gray-600 mb-8">{message}</p>
 
-        <div className="flex justify-center mb-6">
-          <Spinner />
-        </div>
+          <div className="flex justify-center mb-6">
+            <Spinner />
+          </div>
 
-        {/* Debug steps (you can remove later) */}
-        <div className="text-sm text-gray-500 space-y-1 mt-4">
-          <p className={step === "generating" ? "font-semibold text-blue-600" : ""}>
-            🔹 Generating ECDH Keys
-          </p>
-          <p className={step === "signing" ? "font-semibold text-blue-600" : ""}>
-            🔹 Signing Handshake
-          </p>
-          <p className={step === "sending" ? "font-semibold text-blue-600" : ""}>
-            🔹 Sending to Server
-          </p>
-          <p className={step === "deriving" ? "font-semibold text-blue-600" : ""}>
-            🔹 Deriving Session Key
-          </p>
-          <p className={step === "done" ? "font-semibold text-blue-600" : ""}>
-            🔹 Complete
-          </p>
-        </div>
-
-        <Button
-          className="mt-8"
-          variant="secondary"
-          onClick={runHandshake}
-          disabled={step !== "idle" && step !== "done"}
-        >
-          Retry
-        </Button>
-      </Card>
-    </div>
+          <Button
+            className="mt-8"
+            variant="secondary"
+            onClick={runHandshake}
+            disabled={step !== "idle" && step !== "done"}
+          >
+            Retry
+          </Button>
+        </Card>
+      </div>
+    </AuthGuard>
   );
+}
+
+function base64ToBuf(b64: string): ArrayBuffer {
+  return Uint8Array.from(Buffer.from(b64, "base64")).buffer;
 }

@@ -1,28 +1,57 @@
 // src/lib/crypto/signatures.ts
 
 /**
- * This file should:
- * - Sign arbitrary data (e.g., your ECDH public key + metadata)
- * - Verify signatures (e.g., server's signed response)
+ * Sign raw data using the user's identity private key.
+ * Supports RSA-PSS or ECDSA (P-256).
  *
- * Steps:
- * 1. Encode data to ArrayBuffer (e.g., TextEncoder).
- * 2. Use subtle.sign / subtle.verify.
+ * @param data ArrayBuffer to sign
+ * @param privateKey CryptoKey (RSA or EC)
  */
+export async function signData(
+  data: ArrayBuffer,
+  privateKey: CryptoKey
+): Promise<ArrayBuffer> {
+  if (!window.crypto?.subtle) {
+    throw new Error("WebCrypto SubtleCrypto not supported.");
+  }
 
-export async function signData(params: {
-  privateKey: CryptoKey;
-  data: Uint8Array;
-}): Promise<Uint8Array> {
-  // TODO: subtle.sign with appropriate algorithm for your RSA/ECC choice
-  throw new Error("Not implemented");
+  const algo: AlgorithmIdentifier | RsaPssParams | EcdsaParams =
+    privateKey.algorithm.name === "RSA-PSS"
+      ? {
+          name: "RSA-PSS",
+          saltLength: 32,
+        }
+      : {
+          name: "ECDSA",
+          hash: { name: "SHA-256" },
+        };
+
+  return window.crypto.subtle.sign(algo, privateKey, data);
 }
 
-export async function verifySignature(params: {
-  publicKey: CryptoKey;
-  data: Uint8Array;
-  signature: Uint8Array;
-}): Promise<boolean> {
-  // TODO: subtle.verify
-  throw new Error("Not implemented");
+/**
+ * Verify a signature using the peer's identity public key.
+ * Supports RSA-PSS and ECDSA.
+ *
+ * @param publicKey CryptoKey (identity public key)
+ * @param signature Signature ArrayBuffer
+ * @param data Raw message data (ArrayBuffer)
+ */
+export async function verifySignature(
+  publicKey: CryptoKey,
+  signature: ArrayBuffer,
+  data: ArrayBuffer
+): Promise<boolean> {
+  const algo: AlgorithmIdentifier | RsaPssParams | EcdsaParams =
+    publicKey.algorithm.name === "RSA-PSS"
+      ? {
+          name: "RSA-PSS",
+          saltLength: 32,
+        }
+      : {
+          name: "ECDSA",
+          hash: { name: "SHA-256" },
+        };
+
+  return window.crypto.subtle.verify(algo, publicKey, signature, data);
 }

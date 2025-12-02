@@ -25,7 +25,6 @@ export function useAuth() {
     // Store in AuthContext
     contextLogin(user, accessToken);
 
-    router.push("/secure-session");
   }
 
   function logout() {

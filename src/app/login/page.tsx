@@ -21,9 +21,17 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  /**
+   * FIXED:
+   * If the user already has a token, ALWAYS go to secure-session
+   * (Never jump directly to /chat)
+   */
   useEffect(() => {
     if (!initialized) return;
-    if (token) router.replace("/chat");
+
+    if (token) {
+      router.replace("/secure-session");
+    }
   }, [initialized, token, router]);
 
   async function handleSubmit(e: any) {
@@ -32,6 +40,8 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
+
+      // FIXED: ALWAYS go to secure-session after login
       router.push("/secure-session");
     } catch {
       setErrorMsg("Invalid email or password.");
@@ -89,7 +99,11 @@ export default function LoginPage() {
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-300 hover:text-white"
               onClick={() => setShowPassword(!showPassword)}
             >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              {showPassword ? (
+                <EyeOff className="w-5 h-5" />
+              ) : (
+                <Eye className="w-5 h-5" />
+              )}
             </button>
           </div>
 

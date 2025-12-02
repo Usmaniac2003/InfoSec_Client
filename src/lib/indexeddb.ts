@@ -1,16 +1,30 @@
 // src/lib/indexeddb.ts
 
-const DB_NAME = "cipherchat-keys";
-const STORE_NAME = "keys";
+import { IdentityKeyPair, IdentityKeyMetadata } from './crypto/keys';
+
+const DB_NAME = 'secure-messenger';
+const DB_VERSION = 1;
+const STORE_KEYS = 'keys';
+
+type StoredIdentityKeyRecord = {
+  meta: IdentityKeyMetadata;
+  publicKey: CryptoKey;
+  privateKey: CryptoKey;
+};
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    if (typeof window === 'undefined') {
+      return reject(new Error('IndexedDB is not available on the server.'));
+    }
+
+    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+      if (!db.objectStoreNames.contains(STORE_KEYS)) {
+        // Keyed by meta.id (e.g. "user:1:identity")
+        db.createObjectStore(STORE_KEYS, { keyPath: 'meta.id' });
       }
     };
 
@@ -19,33 +33,44 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveKey(id: string, keyData: JsonWebKey) {
+export async function saveIdentityKeyPair(
+  record: StoredIdentityKeyRecord
+): Promise<void> {
   const db = await openDb();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(keyData, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
 
-export async function loadKey(id: string): Promise<JsonWebKey | null> {
-  const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).get(id);
+    const tx = db.transaction(STORE_KEYS, 'readwrite');
+    const store = tx.objectStore(STORE_KEYS);
+    const request = store.put(record);
 
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+
+    tx.oncomplete = () => db.close();
   });
 }
 
-export async function deleteKey(id: string) {
+export async function loadIdentityKeyPair(
+  id: string
+): Promise<StoredIdentityKeyRecord | null> {
   const db = await openDb();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_KEYS, 'readonly');
+    const store = tx.objectStore(STORE_KEYS);
+    const request = store.get(id);
+
+    request.onsuccess = () => {
+      const result = request.result as StoredIdentityKeyRecord | undefined;
+      resolve(result ?? null);
+      db.close();
+    };
+
+    request.onerror = () => {
+      reject(request.error);
+      db.close();
+    };
   });
 }
+
+export type { StoredIdentityKeyRecord };
