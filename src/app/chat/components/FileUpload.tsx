@@ -5,30 +5,12 @@ import Modal from "@/components/Modal";
 import Button from "@/components/Button";
 import { Upload } from "lucide-react";
 
-export default function FileUpload({ open, onClose, onSend }: any) {
+export default function FileUpload({ open, onClose, onSend }) {
   const [file, setFile] = useState<File | null>(null);
 
-  async function convertToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function handleSend() {
+  function handleSend() {
     if (!file) return;
-
-    const base64 = await convertToBase64(file);
-
-    onSend({
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      base64,
-    });
-
+    onSend(file);
     setFile(null);
     onClose();
   }
@@ -41,11 +23,7 @@ export default function FileUpload({ open, onClose, onSend }: any) {
         className="mb-4 border rounded px-3 py-2 w-full bg-gray-700 text-white border-gray-600"
       />
 
-      <Button
-        onClick={handleSend}
-        disabled={!file}
-        className="flex items-center gap-2"
-      >
+      <Button onClick={handleSend} disabled={!file} className="flex items-center gap-2">
         <Upload className="w-4 h-4" /> Send File
       </Button>
     </Modal>

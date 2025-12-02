@@ -1,8 +1,13 @@
 "use client";
 
 import { useAuthContext } from "@/context/AuthContext";
+import React from "react";
 
-export default function MessageList({ messages }: any) {
+interface MessageListProps {
+  messages: any[];
+}
+
+export default function MessageList({ messages }: MessageListProps) {
   const { user } = useAuthContext();
 
   function renderFilePreview(msg: any, isOwn: boolean) {
@@ -59,7 +64,7 @@ export default function MessageList({ messages }: any) {
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-950 rounded-md scrollbar-thin scrollbar-thumb-green-500 scrollbar-track-gray-900 flex flex-col">
       {messages.map((msg: any) => {
-        const isOwn = user && msg.senderId === user.id;
+        const isOwn = user?.id === msg.senderId;
 
         return (
           <div
@@ -73,7 +78,7 @@ export default function MessageList({ messages }: any) {
                 isOwn ? "text-green-400" : "text-gray-400"
               }`}
             >
-              {msg.sender} {isOwn ? "(You)" : ""}
+              {msg.sender} {isOwn && "(You)"}
             </p>
 
             <div
@@ -81,8 +86,10 @@ export default function MessageList({ messages }: any) {
                 isOwn ? "bg-green-800 text-white" : "bg-gray-800 text-white"
               }`}
             >
-              {msg.type === "text" && <p className="whitespace-pre-wrap">{msg.text}</p>}
-              {msg.type === "file" && renderFilePreview(msg, isOwn)}
+              {msg.type === "text" && (
+                <p className="whitespace-pre-wrap">{msg.text}</p>
+              )}
+              {msg.type === "file" && renderFilePreview(msg, isOwn)}{" "}
             </div>
 
             <p className="text-xs text-gray-400 mt-1">{msg.time}</p>

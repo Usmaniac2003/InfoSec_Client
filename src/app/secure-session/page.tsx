@@ -19,15 +19,7 @@ export default function SecureSessionPage() {
 
   const { ensureKeys: ensureIdentityKeys } = useIdentityKeys("EC");
 
-  const [step, setStep] = useState<
-    | "idle"
-    | "loading-identity"
-    | "generating"
-    | "deriving"
-    | "confirming"
-    | "done"
-  >("idle");
-
+  const [step, setStep] = useState("idle");
   const [message, setMessage] = useState("Preparing secure session...");
 
   useEffect(() => {
@@ -36,80 +28,82 @@ export default function SecureSessionPage() {
 
   async function runHandshake() {
     try {
-      // STEP 0 — Ensure identity keys exist
       setStep("loading-identity");
-      setMessage("Loading identity keys...");
       const identity = await ensureIdentityKeys();
-      if (!identity) throw new Error("No identity keys"); // FIXED
-      await wait(300);
+      if (!identity) throw new Error("No identity keys");
 
-      // STEP 1 — Initiate handshake
+      // 1. Initiate
       setStep("generating");
-      setMessage("Initiating handshake...");
-      const { eph, ephRaw, serverResp } = await initiate(identity);
+      const { eph, serverResp } = await initiate(identity);
       const handshakeId = serverResp.handshakeId;
-      await wait(300);
 
-      // STEP 2 — Derive session key
+      // 2. Derive session key
       setStep("deriving");
-      setMessage("Deriving shared session key...");
-      const serverRaw = base64ToBuf(serverResp.serverEphemeralKey);
-
-      const serverPubKey = await crypto.subtle.importKey(
+      const serverPub = await crypto.subtle.importKey(
         "raw",
-        serverRaw,
+        base64ToBuf(serverResp.serverEphemeralKey),
         { name: "ECDH", namedCurve: "P-256" },
         true,
         []
       );
 
-      const sharedSecret = await deriveSharedSecret(eph.privateKey, serverPubKey);
+      const sharedSecret = await deriveSharedSecret(eph.privateKey, serverPub);
       const sessionKey = await hkdfDeriveAES256Key(sharedSecret);
+
       cryptoContext.setSessionKey(sessionKey);
-      await wait(300);
 
-      // STEP 3 — Confirm handshake
+      // 3. Confirm
       setStep("confirming");
-      setMessage("Confirming secure session...");
-      await confirm(sessionKey, handshakeId);
-      await wait(300);
+      const confirmRes = await confirm(sessionKey, handshakeId);
 
-      // STEP 4 — Done
+      // 🟩 Decrypt group key
+      const encrypted = base64ToBuf(confirmRes.encryptedGroupKey);
+      const iv = base64ToBuf(confirmRes.groupIv);
+
+      const rawGroupKey = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: new Uint8Array(iv) },
+        sessionKey,
+        encrypted
+      );
+
+      const groupKey = await crypto.subtle.importKey(
+        "raw",
+        rawGroupKey,
+        { name: "AES-GCM" },
+        false,
+        ["encrypt", "decrypt"]
+      );
+
+      cryptoContext.setGroupKey(groupKey);
+
+      // 5. Redirect
       setStep("done");
-      setMessage("Secure session established! Redirecting...");
-      await wait(700);
-
       router.push("/chat");
     } catch (err) {
       console.error(err);
-      setMessage("Error establishing secure session. Please retry.");
       setStep("idle");
+      setMessage("Error establishing secure session.");
     }
   }
 
-  function wait(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  function base64ToBuf(b64: string) {
+    return Uint8Array.from(Buffer.from(b64, "base64")).buffer;
   }
 
   return (
     <AuthGuard>
-      <div className="min-h-screen flex items-center justify-center bg-blue-50 px-4">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-blue-50">
         <Card className="w-full max-w-lg text-center py-10">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-2">
-            Establishing Secure Session 🔐
-          </h2>
+          <h2 className="text-2xl font-semibold mb-2">Secure Session 🔐</h2>
 
-          <p className="text-gray-600 mb-8">{message}</p>
-
-          <div className="flex justify-center mb-6">
-            <Spinner />
-          </div>
+          <p className="mb-8">{message}</p>
+          <Spinner />
 
           <Button
-            className="mt-8"
-            variant="secondary"
             onClick={runHandshake}
             disabled={step !== "idle" && step !== "done"}
+            className="mt-6"
+            variant="secondary"
           >
             Retry
           </Button>
@@ -117,8 +111,4 @@ export default function SecureSessionPage() {
       </div>
     </AuthGuard>
   );
-}
-
-function base64ToBuf(b64: string): ArrayBuffer {
-  return Uint8Array.from(Buffer.from(b64, "base64")).buffer;
 }

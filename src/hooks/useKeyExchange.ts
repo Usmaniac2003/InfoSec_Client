@@ -2,7 +2,7 @@
 
 import api from "@/lib/api/api";
 import { signData } from "@/lib/crypto/signatures";
-import { generateEphemeralECDH, deriveSharedSecret } from "@/lib/crypto/dh";
+import { generateEphemeralECDH } from "@/lib/crypto/dh";
 import { exportPublicKeyToJwk } from "@/lib/crypto/keys";
 import { API_ROUTES } from "@/lib/api/routes";
 
@@ -23,7 +23,7 @@ export function useKeyExchange() {
 
     const res = await api.post(API_ROUTES.keyExchange.initiate, payload);
 
-    return { eph, ephRaw, serverResp: res.data };
+    return { eph, serverResp: res.data };
   }
 
   async function confirm(sessionKey: CryptoKey, handshakeId: string) {
@@ -43,12 +43,15 @@ export function useKeyExchange() {
       timestamp: Date.now(),
     };
 
-    return api.post(API_ROUTES.keyExchange.confirm, payload);
+    const res = await api.post(API_ROUTES.keyExchange.confirm, payload);
+    return res.data;
   }
 
   return { initiate, confirm };
 }
 
 function bufferToB64(buf: ArrayBuffer | Uint8Array) {
-  return Buffer.from(buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf).toString("base64");
+  return Buffer.from(
+    buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf
+  ).toString("base64");
 }

@@ -3,63 +3,86 @@
 import { useEffect, useState, useCallback } from "react";
 import { getSocket } from "@/lib/socket";
 import { useAuthContext } from "@/context/AuthContext";
+import { useCryptoContext } from "@/context/CryptoContext";
+import {
+  encryptText,
+  decryptText,
+  encryptFile,
+  decryptFile,
+} from "@/lib/crypto/aes";
 
 export function useChatSocket() {
   const { token, user, initialized } = useAuthContext();
+  const { groupKey } = useCryptoContext();
 
   const [messages, setMessages] = useState<any[]>([]);
   const [socket, setSocket] = useState<any>(null);
 
   useEffect(() => {
-    if (!initialized) return;
-    if (!token) return;
+    if (!initialized || !token) return;
 
     const s = getSocket(token);
     setSocket(s);
 
-    console.log("🔌 Connecting to WebSocket…");
+    s.on("receive_message", async (msg: any) => {
+      // TEXT
+      if (msg.type === "text" && groupKey) {
+        msg.text = await decryptText(groupKey, msg.ciphertext, msg.iv);
+      }
 
-    s.on("receive_message", (msg: any) => {
-      console.log("📩 Received:", msg);
+      // FILE
+      if (msg.type === "file" && groupKey) {
+        const decrypted = await decryptFile(groupKey, msg.ciphertext, msg.iv);
+
+        msg.file = {
+          name: msg.fileName,
+          type: msg.mimeType,
+          size: msg.size,
+          base64: URL.createObjectURL(
+            new Blob([decrypted], { type: msg.mimeType })
+          ),
+        };
+      }
+
       setMessages((prev) => [...prev, msg]);
     });
 
     return () => {
       s.off("receive_message");
     };
-  }, [initialized, token]);
+  }, [initialized, token, groupKey]);
 
-  // SEND TEXT MESSAGE
   const sendTextMessage = useCallback(
-    (text: string) => {
-      if (!socket) return;
+    async (text: string) => {
+      if (!socket || !groupKey) return;
+
+      const { iv, ciphertext } = await encryptText(groupKey, text);
 
       socket.emit("send_message", {
-        sender: user?.firstName || "Unknown",
+        senderId: user.id,
+        sender: user.firstName,
         type: "text",
-        text,
+        iv,
+        ciphertext,
       });
     },
-    [socket, user]
+    [socket, groupKey, user]
   );
 
-  // SEND FILE MESSAGE
   const sendFileMessage = useCallback(
-    (fileData: any) => {
-      if (!socket) return;
+    async (file: File) => {
+      if (!socket || !groupKey) return;
+
+      const encrypted = await encryptFile(groupKey, file);
 
       socket.emit("send_file", {
-        sender: user?.firstName || "Unknown",
+        senderId: user.id,
+        sender: user.firstName,
         type: "file",
-        file: {
-          name: fileData.name,
-          size: fileData.size,
-          type: fileData.type,
-          base64: fileData.base64,
-        },
+        ...encrypted,
       });
     },
-    [socket, user]
+    [socket, groupKey, user]
   );
 
   return { messages, sendTextMessage, sendFileMessage };
