@@ -3,43 +3,50 @@
 import { useState } from "react";
 import Modal from "@/components/Modal";
 import Button from "@/components/Button";
+import { Upload } from "lucide-react";
 
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  onSend: (fileData: any) => void;
-}
-
-export default function FileUpload({ open, onClose, onSend }: Props) {
+export default function FileUpload({ open, onClose, onSend }: any) {
   const [file, setFile] = useState<File | null>(null);
 
-  function handleSend() {
+  async function convertToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleSend() {
     if (!file) return;
 
-    const msg = {
-      id: Date.now(),
-      sender: "You",
-      type: "file",
-      fileName: file.name,
-      time: new Date().toLocaleTimeString(),
-      // TODO: encrypted file URL after AES-GCM
-      url: URL.createObjectURL(file),
-    };
+    const base64 = await convertToBase64(file);
 
-    onSend(msg);
+    onSend({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      base64,
+    });
+
+    setFile(null);
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Send a File">
+    <Modal open={open} onClose={onClose} title="Upload File">
       <input
         type="file"
-        className="mb-4"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
+        className="mb-4 border rounded px-3 py-2 w-full bg-gray-700 text-white border-gray-600"
       />
 
-      <Button className="w-full" onClick={handleSend} disabled={!file}>
-        Send File
+      <Button
+        onClick={handleSend}
+        disabled={!file}
+        className="flex items-center gap-2"
+      >
+        <Upload className="w-4 h-4" /> Send File
       </Button>
     </Modal>
   );

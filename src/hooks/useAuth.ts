@@ -16,7 +16,6 @@ export function useAuth() {
     // Store in AuthContext (this also stores in localStorage)
     contextLogin(user, accessToken);
 
-    router.push("/secure-session");
   }
 
   async function register(data: any) {
