@@ -17,20 +17,7 @@ export const API_ROUTES = {
   keyExchange: {
     initiate: "/key-exchange/initiate",
     confirm: "/key-exchange/confirm",
-  },
-
-  messages: {
-    send: "/messages/send",
-    history: "/messages",
-  },
-
-  files: {
-    upload: "/files/upload",
-    download: (id: string) => `/files/${id}`,
-  },
-
-  logs: {
-    all: "/logs",
+    logs: "/key-exchange/logs",
   },
 
   attacks: {

@@ -1,83 +1,63 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Card from "@/components/Card";
-import Spinner from "@/components/Spinner";
+import { useSecurityLogs } from "@/hooks/useSecurityLogs";
+
 
 export default function LogsPage() {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { logs, loading, error } = useSecurityLogs();
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
-
-  async function fetchLogs() {
-    try {
-      // TODO: fetch from backend → GET /logs
-      // Example placeholder:
-      setTimeout(() => {
-        setLogs([
-          {
-            id: 1,
-            type: "AUTH_SUCCESS",
-            message: "User logged in successfully",
-            time: "10:21:36 AM",
-          },
-          {
-            id: 2,
-            type: "KEY_EXCHANGE",
-            message: "ECDH handshake completed",
-            time: "10:22:01 AM",
-          },
-          {
-            id: 3,
-            type: "REPLAY_BLOCKED",
-            message: "Replay attack detected and blocked",
-            time: "10:25:12 AM",
-          },
-        ]);
-
-        setLoading(false);
-      }, 1200);
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
+  function color(status: string) {
+    switch (status) {
+      case "ok":
+        return "text-green-400";
+      case "failed":
+      case "decrypt_failed":
+        return "text-red-400";
+      case "timestamp_expired":
+      case "duplicate_nonce":
+        return "text-orange-400";
+      default:
+        return "text-gray-300";
     }
   }
 
   return (
-    <div className="min-h-screen bg-blue-50 flex flex-col items-center py-10 px-4">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Security Logs 📜</h1>
+    <main className="min-h-screen bg-gray-950 text-white px-6 py-10">
+      <Card className="max-w-4xl mx-auto bg-gray-900 border border-gray-700 p-8 shadow-xl rounded-xl">
+        <h1 className="text-3xl font-bold text-green-400 mb-6">
+          🔐 Security Logs
+        </h1>
 
-      <Card className="w-full max-w-3xl">
-        <h2 className="text-xl font-semibold text-gray-700 mb-4">
-          Recent Security Events
-        </h2>
+        {loading && <p className="text-gray-400">Loading logs...</p>}
+        {error && <p className="text-red-400">{error}</p>}
 
-        {loading ? (
-          <div className="flex justify-center py-6">
-            <Spinner />
-          </div>
-        ) : logs.length === 0 ? (
-          <p className="text-gray-500 text-center py-6">
-            No security logs found.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {logs.map((log) => (
-              <li
-                key={log.id}
-                className="bg-gray-100 p-3 rounded-md border border-gray-200"
-              >
-                <p className="font-semibold text-blue-600">{log.type}</p>
-                <p className="text-gray-700">{log.message}</p>
-                <p className="text-sm text-gray-500 mt-1">{log.time}</p>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="space-y-4">
+          {logs.map((log, i) => (
+            <div
+              key={i}
+              className="p-4 bg-gray-800 rounded-lg border border-gray-700"
+            >
+              {/* Timestamp */}
+              <p className="text-sm text-gray-400">
+                {new Date(log.timestamp).toLocaleString()}
+              </p>
+
+              {/* Event name */}
+              <p className={`text-lg font-semibold ${color(log.status)}`}>
+                {log.event} — {log.status}
+              </p>
+
+              {/* JSON details */}
+              {log.details && (
+                <pre className="text-gray-300 mt-2 text-sm bg-gray-900 p-3 rounded-lg overflow-auto">
+{JSON.stringify(log.details, null, 2)}
+                </pre>
+              )}
+            </div>
+          ))}
+        </div>
       </Card>
-    </div>
+    </main>
   );
 }
