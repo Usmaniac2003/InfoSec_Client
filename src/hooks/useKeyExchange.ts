@@ -47,7 +47,24 @@ export function useKeyExchange() {
     return res.data;
   }
 
-  return { initiate, confirm };
+  //Vulnerable Initiate
+async function initiateVulnerable() {
+    const eph = await generateEphemeralECDH();
+    const ephRaw = await crypto.subtle.exportKey("raw", eph.publicKey);
+
+    // ⚠️ This is intentionally vulnerable — DH without authentication
+    const payload = {
+      clientEphemeralKey: bufferToB64(ephRaw),
+    };
+
+    const res = await api.post(
+      API_ROUTES.keyExchange.vulnerable_initiate,
+      payload
+    );
+
+    return { eph, ephRaw, serverResp: res.data };
+  }
+  return { initiate, confirm,initiateVulnerable };
 }
 
 function bufferToB64(buf: ArrayBuffer | Uint8Array) {

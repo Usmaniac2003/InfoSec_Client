@@ -16,6 +16,7 @@ export const API_ROUTES = {
 
   keyExchange: {
     initiate: "/key-exchange/initiate",
+    vulnerable_initiate:"/key-exchange/vulnerable-initiate",
     confirm: "/key-exchange/confirm",
     logs: "/key-exchange/logs",
   },
